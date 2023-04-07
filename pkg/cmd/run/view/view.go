@@ -65,6 +65,7 @@ type ViewOptions struct {
 	IO          *iostreams.IOStreams
 	BaseRepo    func() (ghrepo.Interface, error)
 	Browser     browser.Browser
+	Prompter    shared.Prompter
 	RunLogCache runLogCache
 
 	RunID      string
@@ -86,6 +87,7 @@ func NewCmdView(f *cmdutil.Factory, runF func(*ViewOptions) error) *cobra.Comman
 	opts := &ViewOptions{
 		IO:          f.IOStreams,
 		HttpClient:  f.HttpClient,
+		Prompter:    f.Prompter,
 		Now:         time.Now,
 		Browser:     f.Browser,
 		RunLogCache: rlc{},
@@ -205,7 +207,7 @@ func runView(opts *ViewOptions) error {
 		if err != nil {
 			return fmt.Errorf("failed to get runs: %w", err)
 		}
-		runID, err = shared.PromptForRun(cs, runs.WorkflowRuns)
+		runID, err = shared.SelectRun(opts.Prompter, cs, runs.WorkflowRuns)
 		if err != nil {
 			return err
 		}

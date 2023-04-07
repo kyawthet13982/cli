@@ -12,6 +12,7 @@ import (
 	"github.com/MakeNowJust/heredoc"
 	"github.com/cli/cli/v2/internal/browser"
 	"github.com/cli/cli/v2/internal/ghrepo"
+	"github.com/cli/cli/v2/internal/prompter"
 	"github.com/cli/cli/v2/pkg/cmd/run/shared"
 	workflowShared "github.com/cli/cli/v2/pkg/cmd/workflow/shared"
 	"github.com/cli/cli/v2/pkg/cmdutil"
@@ -169,15 +170,16 @@ func TestNewCmdView(t *testing.T) {
 
 func TestViewRun(t *testing.T) {
 	tests := []struct {
-		name       string
-		httpStubs  func(*httpmock.Registry)
-		askStubs   func(*prompt.AskStubber)
-		opts       *ViewOptions
-		tty        bool
-		wantErr    bool
-		wantOut    string
-		browsedURL string
-		errMsg     string
+		name        string
+		httpStubs   func(*httpmock.Registry)
+		askStubs    func(*prompt.AskStubber)
+		promptStubs func(*prompter.MockPrompter)
+		opts        *ViewOptions
+		tty         bool
+		wantErr     bool
+		wantOut     string
+		browsedURL  string
+		errMsg      string
 	}{
 		{
 			name: "associate with PR",
@@ -532,9 +534,12 @@ func TestViewRun(t *testing.T) {
 					httpmock.REST("GET", "repos/OWNER/REPO/actions/workflows/123"),
 					httpmock.JSONResponse(shared.TestWorkflow))
 			},
-			askStubs: func(as *prompt.AskStubber) {
-				//nolint:staticcheck // SA1019: as.StubOne is deprecated: use StubPrompt
-				as.StubOne(2)
+			promptStubs: func(pm *prompter.MockPrompter) {
+				pm.RegisterSelect("Select a workflow run",
+					[]string{"X cool commit, CI (trunk) Feb 23, 2021", "* cool commit, CI (trunk) Feb 23, 2021", "✓ cool commit, CI (trunk) Feb 23, 2021", "X cool commit, CI (trunk) Feb 23, 2021", "X cool commit, CI (trunk) Feb 23, 2021", "- cool commit, CI (trunk) Feb 23, 2021", "- cool commit, CI (trunk) Feb 23, 2021", "* cool commit, CI (trunk) Feb 23, 2021", "* cool commit, CI (trunk) Feb 23, 2021", "X cool commit, CI (trunk) Feb 23, 2021"},
+					func(_, _ string, opts []string) (int, error) {
+						return prompter.IndexFor(opts, "✓ cool commit, CI (trunk) Feb 23, 2021")
+					})
 			},
 			opts: &ViewOptions{
 				Prompt: true,
@@ -1209,6 +1214,12 @@ func TestViewRun(t *testing.T) {
 		tt.opts.IO = ios
 		tt.opts.BaseRepo = func() (ghrepo.Interface, error) {
 			return ghrepo.FromFullName("OWNER/REPO")
+		}
+
+		pm := prompter.NewMockPrompter(t)
+		tt.opts.Prompter = pm
+		if tt.promptStubs != nil {
+			tt.promptStubs(pm)
 		}
 
 		//nolint:staticcheck // SA1019: prompt.InitAskStubber is deprecated: use NewAskStubber
